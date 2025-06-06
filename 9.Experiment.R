@@ -64,7 +64,7 @@ df_table <- data.frame(DRI = rownames(table_matrix), table_matrix, check.names =
 
 
 # Number of simulations per DRI value
-Sim <- 1000
+Sim <- 3
 
 
 # Data to save
@@ -250,6 +250,9 @@ for (DRI in DRI_values) {
   lower <- He_mean - error_margin
   upper <- He_mean + error_margin
   
+  df_summary <- data.table(Generation = 1:T_total, Mean = He_mean, Lower = lower, Upper = upper)
+  
+  
   # Save it in the .csv file
   DRI_col <- as.character(DRI)
   df_table[df_table$DRI == "mean He", DRI_col] <- tail(He_mean, 1)
@@ -285,9 +288,6 @@ for (DRI in DRI_values) {
     
     # Plot mean He + 95% CI
     
-    df_summary <- data.table(Generation = 1:T_total, Mean = He_mean, Lower = lower, Upper = upper)
-    
-  
     p_mean <- ggplot(df_summary, aes(x = Generation, y = Mean)) +
       geom_line(color = "blue", linewidth = 1.2) +
       geom_ribbon(data = df_summary, aes(ymin = Lower, ymax = Upper), alpha = 0.3, fill = "blue") +
@@ -313,9 +313,6 @@ for (DRI in DRI_values) {
   # Plot all He curves + mean + 95% CI
   
   if (save.plots.summary==TRUE){
-    
-    df_summary <- data.table(Generation = 1:T_total, Mean = He_mean, Lower = lower, Upper = upper)
-    
     
     p_curves <- ggplot(df_plot, aes(x = Generation, y = He, group = Simulation)) +
       geom_line(color = "lightgrey", alpha = 0.1, size = 0.3) +
@@ -390,18 +387,51 @@ for (DRI in DRI_values) {
 
 ##########################################
 
-# Save the global plots (curves and box plot)
+# Save the global results (statistics, curves and box plot)
 
 ##########################################
 
-# He statistics for each DRI
+
+### He statistics for each DRI
 
 csv_file <- file.path(base_dir, "He_statistics_final.csv")
 write.csv(df_table, csv_file, row.names = FALSE, na = "")
 
 
+mean_he_vector <- as.numeric(df_table[df_table$DRI == "mean He", -1])
+names(mean_he_vector) <- colnames(df_table)[-1]
 
-# global He_box.jpg for all DRI
+summary_He <- data.frame(
+  DRI = as.numeric(names(mean_he_vector)),
+  He_mean = mean_he_vector
+)
+
+# Perform statistical analyses
+
+He_control <- summary_He$He_mean[summary_He$DRI == 0] # the DRI=0 has to be treated separately because there is no disturbance return value that can be used in the statistical comparison
+He_treatment <- summary_He$He_mean[summary_He$DRI != 0]
+
+t_test_result <- t.test(He_treatment, mu = He_control)
+
+lm_result <- lm(He_mean ~ DRI, data = summary_He[summary_He$DRI != 0, ])
+
+
+results_summary <- data.frame(
+  test = c("t-test", "linear_regression"),
+  estimate = c(t_test_result$estimate, coef(lm_result)[2]),
+  p_value = c(t_test_result$p.value, summary(lm_result)$coefficients[2, 4]),
+  conf_low = c(t_test_result$conf.int[1], confint(lm_result)[2, 1]),
+  conf_high = c(t_test_result$conf.int[2], confint(lm_result)[2, 2])
+)
+
+test_file <- file.path(base_dir, "summary_statistics.csv")
+write.csv(results_summary, test_file, row.names = FALSE)
+
+#---------
+
+
+
+## Global He_box.jpg for all DRI
 
 if (save.global.boxes==TRUE){
   
@@ -423,9 +453,11 @@ if (save.global.boxes==TRUE){
   ggsave(filename = file.path(base_dir, "He_boxes.jpg"), plot = p_final_box, width = 10, height = 6)
 }
 
+#---------
 
 
-# global He_curves.jpg for all DRI
+
+## Global He_curves.jpg for all DRI
 
 if (save.global.curves==TRUE){
   
@@ -433,11 +465,14 @@ if (save.global.curves==TRUE){
   
   # Create legend plot for curve descriptions
   legend_grid <- ggplot() +
-    geom_line(aes(x = 1:4, y = 1:4, color = "Individual He")) +
-    geom_line(aes(x = 1:4, y = 1:4, color = "Mean He"), size = 1) +
-    geom_ribbon(aes(x = 1:4, ymin = 0.8, ymax = 1.2, fill = "95% CI"), alpha = 0.3) +
-    geom_vline(aes(xintercept = 2, linetype = "Disturbance occurrence"), color = "red", alpha = 1) +
-    scale_color_manual(values = c("Individual He" = "lightgrey", "Mean He" = "blue")) +
+    geom_line(data = data.frame(x = 1:4, y = 1:4), 
+              aes(x = x, y = y, color = "Individual He     ")) +  # Ajout d'espaces
+    geom_line(data = data.frame(x = 1:4, y = 2:5), 
+              aes(x = x, y = y, color = "Mean He"), size = 1) +
+    geom_ribbon(data = data.frame(x = 1:4, ymin = 0.8, ymax = 1.2), 
+                aes(x = x, ymin = ymin, ymax = ymax, fill = "95% CI"), alpha = 0.3) +
+    geom_vline(aes(xintercept = 2, linetype = "Disturbance occurrence"), color = "red") +
+    scale_color_manual(values = c("Individual He     " = "lightgrey", "Mean He" = "blue")) +
     scale_fill_manual(values = c("95% CI" = "blue")) +
     scale_linetype_manual(values = c("Disturbance occurrence" = "dotted")) +
     guides(
@@ -445,17 +480,21 @@ if (save.global.curves==TRUE){
       fill = guide_legend(order = 2),
       linetype = guide_legend(order = 3)
     ) +
+    coord_cartesian(xlim = c(0, 0.1), ylim = c(0, 0.1), clip = "off") +
     theme_void() +
-    theme(legend.position = "bottom",
-          legend.title = element_blank())
-  
-  
+    theme(
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16),
+      legend.spacing.x = unit(1.2, "cm"),
+      plot.margin = margin(0, 0, 0, 0)
+    )
   
   final_plot <- arrangeGrob(
     plots_grid,
     legend_grid,
     ncol = 1,
-    heights = unit.c(unit(1, "npc") - unit(1, "lines"), unit(1, "lines"))
+    heights = unit.c(unit(0.92, "npc"), unit(0.08, "npc"))
   )
   
   ggsave(

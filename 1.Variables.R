@@ -1,4 +1,4 @@
-setwd("C:\\Users\\david\\Documents\\DAVID\\CS\\DD\\Cours\\Master Thesis\\Coding\\Codes\\05-26\\Experiment")
+setwd("C:\\Users\\david\\Documents\\DAVID\\CS\\DD\\Cours\\Master_Thesis\\ENVM7130_Master_Thesis\\Experiment")
 
 
 #############################################
@@ -29,13 +29,13 @@ T_max <- 100         # simulation time (in number of generations)
 # Initial population in each genotype, deme and age class
 
 N0 <- array(10,dim=c(m,n,z))
-dimnames(N1) <- list(genotype=c(1:m),deme=c(1:n),age=c(1:z))
+dimnames(N0) <- list(genotype=c(1:m),deme=c(1:n),age=c(1:z))
 
 
 # Initial population in each genotype, deme and age class
 
 SB0 <- array(100,dim=c(m,n))
-dimnames(SB1) <- list(genotype=c(1:m),deme=c(1:n))
+dimnames(SB0) <- list(genotype=c(1:m),deme=c(1:n))
 
 
 
